@@ -1,0 +1,24 @@
+{
+  "name": "automated-pdf-reporting",
+  "version": "1.0.0",
+  "description": "Brand-neutral KPI PDF reports from a SQLite database using HTML templates and Puppeteer.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "seed": "node scripts/seed.mjs",
+    "report": "node src/cli/report.mjs",
+    "report:html": "node src/cli/report.mjs --html-only",
+    "report:schedule": "node src/cli/schedule.mjs",
+    "docs:sample": "node scripts/generate-docs.mjs",
+    "puppeteer:install": "npx puppeteer browsers install chrome",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "puppeteer": "^25.13.0"
+  },
+  "devDependencies": {
+    "pdf-parse": "1.1.1"
+  }
+}
