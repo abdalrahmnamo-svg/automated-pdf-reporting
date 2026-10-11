@@ -70,6 +70,29 @@ export const monthKey = (iso) => iso.slice(0, 7)
 
 const DAY = 86_400_000
 
+/** Calendar months (UTC "YYYY-MM") touched by the range, even if a month has no data. */
+export function monthKeys(range) {
+  const months = []
+  const end = Date.parse(range.to)
+  for (let d = new Date(Date.parse(range.from)); d.getTime() < end; d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))) {
+    months.push(d.toISOString().slice(0, 7))
+  }
+  return months
+}
+
+/** Volume-trend buckets: daily for short ranges, 7-day buckets from the period start otherwise. */
+export function trendLayout(range) {
+  const end = Date.parse(range.to)
+  const spanDays = Math.ceil((end - Date.parse(range.from)) / DAY)
+  const bucketDays = spanDays <= 21 ? 1 : 7
+  const bucketCount = Math.max(1, Math.ceil(spanDays / bucketDays))
+  const trend = Array.from({ length: bucketCount }, (_, i) => ({
+    start: new Date(Date.parse(range.from) + i * bucketDays * DAY).toISOString().slice(0, 10),
+    volume: 0,
+  }))
+  return { bucketDays, trend }
+}
+
 /**
  * Build the full report model for a period.
  * @param {Conversation[]} conversations conversations created in [from, to)
@@ -85,25 +108,12 @@ export function buildReportModel(conversations, range) {
     ...roundKpis(computeGroupKpis(list.filter((c) => c.agent === name), { minCsatRatings: MIN_CSAT_RATINGS })),
   }))
 
-  // Calendar months touched by the range (even if a month has no data).
-  const months = []
-  const end = Date.parse(range.to)
-  for (let d = new Date(Date.parse(range.from)); d.getTime() < end; d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))) {
-    months.push(d.toISOString().slice(0, 7))
-  }
-  const byMonth = months.map((key) => ({
+  const byMonth = monthKeys(range).map((key) => ({
     key,
     ...roundKpis(computeGroupKpis(list.filter((c) => monthKey(c.createdAt) === key))),
   }))
 
-  // Volume trend: daily buckets for short ranges, 7-day buckets from the period start otherwise.
-  const spanDays = Math.ceil((end - Date.parse(range.from)) / DAY)
-  const bucketDays = spanDays <= 21 ? 1 : 7
-  const bucketCount = Math.max(1, Math.ceil(spanDays / bucketDays))
-  const trend = Array.from({ length: bucketCount }, (_, i) => ({
-    start: new Date(Date.parse(range.from) + i * bucketDays * DAY).toISOString().slice(0, 10),
-    volume: 0,
-  }))
+  const { bucketDays, trend } = trendLayout(range)
   for (const c of list) {
     const i = Math.floor((Date.parse(c.createdAt) - Date.parse(range.from)) / (bucketDays * DAY))
     if (trend[i]) trend[i].volume += 1

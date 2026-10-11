@@ -18,6 +18,8 @@ export function parseReportArgs(argv, extra = {}) {
       to: { type: 'string' },
       title: { type: 'string' },
       db: { type: 'string' },
+      source: { type: 'string', default: 'sqlite' },
+      warehouse: { type: 'string' },
       out: { type: 'string', default: 'output' },
       'html-only': { type: 'boolean', default: false },
       ...extra,

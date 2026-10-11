@@ -61,7 +61,7 @@ export function rowTrend(kind, vals, db = 0, goodWhen = 'up') {
   const cls = flat ? 'flat' : good ? 'up' : 'down'
   const arrow = flat ? '→' : d > 0 ? '↑' : '↓'
   let ds
-  if (kind === 'sec') ds = `${d > 0 ? '+' : ''}${Math.round(d)}s`
+  if (kind === 'sec') ds = `${d > 0 ? '+' : '-'}${fmt.sec(Math.abs(d))}` // same unit scale as the row's cells
   else if (kind === 'pct') ds = `${r1 > 0 ? '+' : ''}${r1} pp`
   else if (kind === 'num') ds = `${d > 0 ? '+' : ''}${Math.round(d * 100) / 100}`
   else ds = `${d > 0 ? '+' : ''}${Math.round(d)}`
@@ -88,8 +88,8 @@ export const bar = (pct, cls = '') => {
 }
 
 /** KPI card grid. cards: [{v, l, s?}] (values are escaped). */
-export const metricCards = (cards) =>
-  `<div class="kpis">${cards
+export const metricCards = (cards, columns = 4) =>
+  `<div class="kpis${columns === 4 ? '' : ` kpis-${Number(columns)}`}">${cards
     .map((c) => `<div class="kpi"><div class="v">${esc(c.v)}</div><div class="l">${esc(c.l)}</div>${c.s ? `<div class="s">${esc(c.s)}</div>` : ''}</div>`)
     .join('')}</div>`
 

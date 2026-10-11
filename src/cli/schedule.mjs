@@ -31,6 +31,7 @@ if (!Number.isFinite(everyMin) || everyMin <= 0) {
 /** Explicit --period/--from/--to wins; otherwise the quarter containing the newest conversation. */
 function currentPeriodArgs() {
   if (args.period || (args.from && args.to)) return { period: args.period, from: args.from, to: args.to }
+  if (args.source === 'warehouse') throw new Error('--source warehouse needs an explicit --period (or --from/--to)')
   const db = openDb(args.db, { readOnly: true })
   try {
     const latest = latestConversationAt(db)
@@ -49,7 +50,7 @@ worker.on('status', (job) => console.log(`[${new Date().toISOString()}] ${job.id
 async function runOnce() {
   const p = currentPeriodArgs()
   resolvePeriod(p)
-  const job = worker.enqueue({ dbPath: args.db, ...p, title: args.title, outDir: args.out, htmlOnly: args['html-only'] })
+  const job = worker.enqueue({ source: args.source, dbPath: args.db, warehousePath: args.warehouse, ...p, title: args.title, outDir: args.out, htmlOnly: args['html-only'] })
   const done = await worker.waitFor(job.id)
   if (done.status === 'done') console.log(`Wrote ${done.outputPath}`)
   else console.error(`Scheduled report failed: ${done.error}`)

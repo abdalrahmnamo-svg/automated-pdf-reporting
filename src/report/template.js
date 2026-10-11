@@ -29,6 +29,17 @@ const DEFINITIONS = [
   ['CSAT band', 'Excellent 90%+, Good 80%+, Fair 70%+, otherwise Low (illustrative thresholds).'],
 ]
 
+/** Definitions printed on the warehouse-sourced report (see README "Metric definitions"). */
+const WAREHOUSE_DEFINITIONS = [
+  ['Volume', 'Tickets created in the period (marts.fct_tickets, by created_at).'],
+  ['First response', 'Minutes from creation to first agent reply; unanswered tickets are left out. p50 and p90 use interpolated quantiles (quantile_cont).'],
+  ['Resolution rate', 'Resolved tickets divided by tickets in the group. Per agent, unanswered (unassigned) tickets are not in the denominator.'],
+  ['SLA breach', 'Share of tickets not answered within the channel target (chat 5 min, phone 3 min, e-mail 240 min). Unanswered tickets count as breaches.'],
+  ['CSAT', 'Share of valid 1-5 survey answers that are 4 or 5, by submission date. Shown per agent only with at least 3 answers.'],
+  ['QA pass rate', 'QA scores at or above the pass mark (90) divided by all valid scores, by scoring date.'],
+  ['CSAT band', 'Excellent 90%+, Good 80%+, Fair 70%+, otherwise Low (illustrative thresholds).'],
+]
+
 /**
  * Build the complete, self-contained report HTML document.
  * @param {{title:string, periodLabel:string, model:ReturnType<import('../kpi/index.js').buildReportModel>, generatedOn?:string}} opts
@@ -58,19 +69,26 @@ export function buildReportHtml({ title, periodLabel, model, generatedOn = new D
   }
 
   const t = model.team
+  const wh = model.source === 'warehouse'
+  const noun = wh ? 'Tickets' : 'Conversations'
+  const cards = [
+    { v: fmt.int(t.volume), l: noun, s: `${t.answeredCount} answered` },
+    { v: fmt.sec(t.frtMedianSec), l: 'Median first response', s: `p90 ${fmt.sec(t.frtP90Sec)}` },
+    { v: fmt.pct(t.resolutionRate), l: 'Resolution rate', s: `${t.resolvedCount} resolved` },
+    { v: fmt.pct(t.csatPct), l: 'CSAT', s: t.avgRating != null ? `avg ${fmt.num(t.avgRating)} / 5 · ${t.ratingCount} ratings` : 'no ratings' },
+  ]
+  if (wh) {
+    cards.splice(3, 0, { v: fmt.pct(t.slaBreachPct), l: 'First-response SLA breach', s: `${t.slaBreachedCount} of ${t.volume} tickets` })
+    cards.push({ v: fmt.pct(t.qaPassRate), l: 'QA pass rate', s: t.qaCount ? `${t.qaCount} scores` : 'no scores' })
+  }
   const page1 = () =>
     cover
     + C.section('Summary')
-    + C.metricCards([
-      { v: fmt.int(t.volume), l: 'Conversations', s: `${t.answeredCount} answered` },
-      { v: fmt.sec(t.frtMedianSec), l: 'Median first response', s: `p90 ${fmt.sec(t.frtP90Sec)}` },
-      { v: fmt.pct(t.resolutionRate), l: 'Resolution rate', s: `${t.resolvedCount} resolved` },
-      { v: fmt.pct(t.csatPct), l: 'CSAT', s: t.avgRating != null ? `avg ${fmt.num(t.avgRating)} / 5 · ${t.ratingCount} ratings` : 'no ratings' },
-    ])
-    + C.section('Conversation volume trend')
+    + C.metricCards(cards, wh ? 3 : 4)
+    + C.section(`${wh ? 'Ticket' : 'Conversation'} volume trend`)
     + C.lineChart({
       points: model.trend.map((b) => ({ label: dayLabel(b.start), value: b.volume })),
-      yLabel: model.bucketDays === 1 ? 'Conversations per day' : `Conversations per ${model.bucketDays}-day bucket`,
+      yLabel: model.bucketDays === 1 ? `${noun} per day` : `${noun} per ${model.bucketDays}-day bucket`,
     })
     + `<div class="small">${model.bucketDays}-day buckets starting ${C.esc(dayLabel(model.trend[0].start))}; the final bucket may be shorter.</div>`
     + matrix()
@@ -81,7 +99,9 @@ export function buildReportHtml({ title, periodLabel, model, generatedOn = new D
     { v: fmt.sec(a.frtMedianSec), align: 'r' },
     { v: fmt.sec(a.frtP90Sec), align: 'r' },
     { v: `${fmt.pct(a.resolutionRate)}${C.bar(a.resolutionRate, resolutionBarClass(a.resolutionRate))}`, align: 'r', html: true },
+    ...(wh ? [{ v: fmt.pct(a.slaBreachPct), align: 'r' }] : []),
     { v: a.csatPct == null ? '—' : `${fmt.pct(a.csatPct)} (${a.ratingCount})`, align: 'r' },
+    ...(wh ? [{ v: a.qaPassRate == null ? '—' : `${fmt.pct(a.qaPassRate)} (${a.qaCount})`, align: 'r' }] : []),
     { v: C.badge(csatBand(a)), align: 'c', html: true },
   ])
 
@@ -98,12 +118,16 @@ export function buildReportHtml({ title, periodLabel, model, generatedOn = new D
     cols: mCols,
     trendHeader: 'First to last',
     rows: [
-      matrixRow('Conversations', 'int', (m) => m.volume, fmt.int, t.volume, 'up', 0),
+      matrixRow(noun, 'int', (m) => m.volume, fmt.int, t.volume, 'up', 0),
       matrixRow('Median first response', 'sec', (m) => m.frtMedianSec, fmt.sec, t.frtMedianSec, 'down', 2),
       matrixRow('Resolution rate', 'pct', (m) => m.resolutionRate, fmt.pct, t.resolutionRate, 'up', 0.5),
+      ...(wh ? [matrixRow('First-response SLA breach', 'pct', (m) => m.slaBreachPct, fmt.pct, t.slaBreachPct, 'down', 0.5)] : []),
       matrixRow('CSAT', 'pct', (m) => m.csatPct, fmt.pct, t.csatPct, 'up', 0.5),
+      ...(wh ? [matrixRow('QA pass rate', 'pct', (m) => m.qaPassRate, fmt.pct, t.qaPassRate, 'up', 0.5)] : []),
     ],
-    caption: 'Trend compares the first and last month with data. For first response, lower is better.',
+    caption: wh
+      ? 'Trend compares the first and last month with data. For first response and SLA breach, lower is better.'
+      : 'Trend compares the first and last month with data. For first response, lower is better.',
   })
 
   const page2 =
@@ -115,14 +139,20 @@ export function buildReportHtml({ title, periodLabel, model, generatedOn = new D
         { t: 'Median FRT', align: 'r' },
         { t: 'P90 FRT', align: 'r' },
         { t: 'Resolution', align: 'r' },
+        ...(wh ? [{ t: 'SLA breach', align: 'r' }] : []),
         { t: 'CSAT (n)', align: 'r' },
+        ...(wh ? [{ t: 'QA pass (n)', align: 'r' }] : []),
         { t: 'Band', align: 'c' },
       ],
       rows: agentRows,
     })
     + C.section('Definitions')
-    + `<dl class="defs">${DEFINITIONS.map(([k, v]) => `<dt>${C.esc(k)}</dt><dd>${C.esc(v)}</dd>`).join('')}</dl>`
-    + C.note('All figures in this document come from a seeded synthetic dataset created for demonstration. They describe no real team, customer or organisation.')
+    + `<dl class="defs">${(wh ? WAREHOUSE_DEFINITIONS : DEFINITIONS).map(([k, v]) => `<dt>${C.esc(k)}</dt><dd>${C.esc(v)}</dd>`).join('')}</dl>`
+    + C.note(
+      wh
+        ? 'Figures come from the marts of a synthetic support-analytics warehouse, computed by SQL with the definitions in its metrics document. All data is generated for demonstration and describes no real team, customer or organisation.'
+        : 'All figures in this document come from a seeded synthetic dataset created for demonstration. They describe no real team, customer or organisation.',
+    )
 
   const body = C.sheet(page1(), footerLeft, footerRight) + C.sheet(page2, footerLeft, footerRight)
   return C.page({ css, body, title: `${title} - ${periodLabel}` })

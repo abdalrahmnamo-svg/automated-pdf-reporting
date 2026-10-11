@@ -75,6 +75,7 @@ table.mtx td.tot { font-weight: 700; background: var(--accent-soft) !important; 
 
 /* ---- KPI cards ---- */
 .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.kpis.kpis-3 { grid-template-columns: repeat(3, 1fr); }
 .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
 .kpi .v { font-size: 20px; font-weight: 700; color: var(--accent-deep); line-height: 1.1; }
 .kpi .l { font-size: 8.7px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-top: 4px; }

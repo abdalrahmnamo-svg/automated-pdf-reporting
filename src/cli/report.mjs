@@ -2,7 +2,9 @@
 //   npm run report -- --period 2026-Q1
 //   npm run report -- --from 2026-01-15 --to 2026-02-10
 //   npm run report:html -- --period 2026-Q1      (emit HTML only; fast template iteration)
+//   npm run report -- --source warehouse --warehouse path/to/support.duckdb --period 2026-Q2
 import { loadEnv, parseReportArgs } from './args.js'
+import { resolveWarehousePath } from '../kpi/warehouse.js'
 import { ExportWorker } from '../worker/exportWorker.js'
 import { generateReport } from '../report/generate.js'
 import { resolvePeriod } from '../period.js'
@@ -19,6 +21,8 @@ try {
 
 try {
   resolvePeriod({ period: args.period, from: args.from, to: args.to }) // fail fast on bad input, no retry
+  if (args.source !== 'sqlite' && args.source !== 'warehouse') throw new Error(`--source must be sqlite or warehouse (got "${args.source}")`)
+  if (args.source === 'warehouse') resolveWarehousePath(args.warehouse) // missing file: fail fast too
 } catch (err) {
   console.error(err.message)
   process.exit(2)
@@ -32,7 +36,9 @@ const worker = new ExportWorker({
 worker.on('status', (job) => console.log(`[${job.id}] ${job.status}${job.attempts ? ` (attempt ${job.attempts})` : ''}`))
 
 const job = worker.enqueue({
+  source: args.source,
   dbPath: args.db,
+  warehousePath: args.warehouse,
   period: args.period,
   from: args.from,
   to: args.to,
