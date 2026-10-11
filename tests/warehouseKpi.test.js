@@ -233,8 +233,11 @@ describe('warehouse source plumbing', () => {
     assert.equal(path.basename(out.outputPath), 'report-2026-Q2.pdf')
     const parsed = await pdfParse(fs.readFileSync(out.outputPath))
     assert.equal(parsed.numpages, 2)
-    assert.match(parsed.text, /Performance by agent/)
-    assert.match(parsed.text, /QA pass rate/)
-    assert.match(parsed.text, /Agent Alpha/)
+    // Line breaks depend on the fonts installed (e.g. "Agent\nAlpha" in a narrow column on Linux), so compare
+    // the extracted text with all whitespace collapsed to single spaces.
+    const text = parsed.text.replace(/\s+/g, ' ')
+    assert.match(text, /Performance by agent/)
+    assert.match(text, /QA pass rate/)
+    assert.match(text, /Agent Alpha/)
   })
 })
